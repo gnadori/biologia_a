@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hüllő keringési rendszer és sönt szimuláció</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --deox: #3b82f6;
+      --ox: #ef4444;
+      --mixed: #a855f7;
+      --warm: #f97316;
+      --lung: #06b6d4;
+      --accent: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto 16px;
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      background: #334155;
+      border-radius: 9999px;
+      color: var(--text-muted);
+    }
+
+    .main-layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .canvas-container {
+      background: var(--card-bg);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 520px;
+    }
+
+    .canvas-toolbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .mode-pills {
+      pointer-events: auto;
+      display: flex;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      gap: 4px;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    .mode-btn.active.bask {
+      background: var(--warm);
+      color: #ffffff;
+    }
+
+    .controls-overlay {
+      pointer-events: auto;
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .ctrl-btn:hover {
+      background: #334155;
+    }
+
+    svg#circ-canvas {
+      width: 100%;
+      height: 100%;
+      flex: 1;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 14px;
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    .metric-val {
+      font-weight: 700;
+      font-family: monospace;
+      font-size: 0.95rem;
+    }
+
+    .bar-bg {
+      height: 6px;
+      background: #0f172a;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 2px;
+      margin-bottom: 10px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s ease, background-color 0.4s ease;
+    }
+
+    .explanation-box {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: #cbd5e1;
+    }
+
+    .explanation-box p {
+      margin-bottom: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .vessel-label {
+      font-size: 10px;
+      fill: #94a3b8;
+      font-family: monospace;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Hüllő keringési szimuláció <span class="badge">Squamata / Testudines</span></h1>
+    <div style="font-size: 0.8rem; color: var(--text-muted);">
+      Háromüregű szív dinamikus söntöléssel
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <div class="canvas-container">
+      <div class="canvas-toolbar">
+        <div class="mode-pills">
+          <button class="mode-btn active" id="mode-resp" onclick="setMode('resp')">Gyors lélegeztetés</button>
+          <button class="mode-btn" id="mode-bask" onclick="setMode('bask')">Napozás (J-B sönt)</button>
+        </div>
+        <div class="controls-overlay">
+          <span>Sebesség:</span>
+          <button class="ctrl-btn" onclick="setSpeed(0.5)">0.5x</button>
+          <button class="ctrl-btn" onclick="setSpeed(1)">1x</button>
+          <button class="ctrl-btn" onclick="setSpeed(1.8)">1.8x</button>
+          <button class="ctrl-btn" id="pause-btn" onclick="togglePlay()">Szünet</button>
+        </div>
+      </div>
+
+      <svg id="circ-canvas" viewBox="0 0 650 500">
+        <defs>
+          <linearGradient id="lung-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0891b2" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#0e7490" stop-opacity="0.1"/>
+          </linearGradient>
+          <linearGradient id="body-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f97316" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#c2410c" stop-opacity="0.05"/>
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+          </filter>
+        </defs>
+
+        <!-- Keringési szervek háttere -->
+        <g id="organs">
+          <!-- Tüdőágy -->
+          <rect x="50" y="30" width="220" height="70" rx="12" fill="url(#lung-grad)" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <text x="65" y="55" fill="#38bdf8" font-size="12" font-weight="700">TÜDŐKERINGÉS</text>
+          <text x="65" y="75" fill="#94a3b8" font-size="9" id="lung-status-txt">Alacsony ellenállás • Intenzív gázcsere</text>
+
+          <!-- Bőr és periféria -->
+          <rect x="380" y="30" width="220" height="70" rx="12" fill="url(#body-grad)" stroke="#f97316" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <text x="395" y="55" fill="#fb923c" font-size="12" font-weight="700">BŐR & HÁTI PERIFÉRIA</text>
+          <text x="395" y="75" fill="#94a3b8" font-size="9" id="skin-status-txt">Nyugalmi felületi perfúzió</text>
+
+          <!-- Szisztémás zsigerek / Testmag -->
+          <rect x="215" y="420" width="220" height="65" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+          <text x="230" y="445" fill="#f8fafc" font-size="11" font-weight="600">TESTMAG & ZSIGEREK</text>
+          <text x="230" y="465" fill="#94a3b8" font-size="9" id="core-status-txt">Oxigénleadás a szöveteknek</text>
+        </g>
+
+        <!-- Érpályák vezetése -->
+        <g id="vessel-paths" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Tüdőverőér (Jobb szívfél -> Tüdő) -->
+          <path id="path-pa" d="M 285 240 C 260 180, 160 180, 160 100" stroke="#1e293b" stroke-width="12"/>
+          <path d="M 285 240 C 260 180, 160 180, 160 100" stroke="#3b82f6" stroke-width="3" stroke-opacity="0.4"/>
+
+          <!-- Tüdővéna (Tüdő -> Bal pitvar) -->
+          <path id="path-pv" d="M 180 100 C 180 160, 365 150, 365 210" stroke="#1e293b" stroke-width="12"/>
+          <path d="M 180 100 C 180 160, 365 150, 365 210" stroke="#ef4444" stroke-width="3" stroke-opacity="0.4"/>
+
+          <!-- Bal és jobb aortaív a zsigerek felé -->
+          <path id="path-ao" d="M 325 250 C 325 330, 325 360, 325 420" stroke="#1e293b" stroke-width="14"/>
+          <path d="M 325 250 C 325 330, 325 360, 325 420" stroke="#ef4444" stroke-width="4" stroke-opacity="0.4"/>
+
+          <!-- Szisztémás véna (Test -> Jobb pitvar) -->
+          <path id="path-vc" d="M 260 420 C 260 360, 245 310, 245 210" stroke="#1e293b" stroke-width="12"/>
+          <path d="M 260 420 C 260 360, 245 310, 245 210" stroke="#3b82f6" stroke-width="3" stroke-opacity="0.4"/>
+
+          <!-- Bőr / Perifériás ágak (Szisztémás aorta -> Bőr) -->
+          <path id="path-to-skin" d="M 335 300 C 450 300, 490 200, 490 100" stroke="#1e293b" stroke-width="10"/>
+          <path d="M 335 300 C 450 300, 490 200, 490 100" stroke="#f97316" stroke-width="2" stroke-opacity="0.4"/>
+
+          <!-- Bőrvéna vissza a jobb pitvarba -->
+          <path id="path-from-skin" d="M 450 100 C 450 170, 255 160, 255 210" stroke="#1e293b" stroke-width="10"/>
+          <path d="M 450 100 C 450 170, 255 160, 255 210" stroke="#f97316" stroke-width="2" stroke-opacity="0.4"/>
+
+          <!-- Jobb-bal sönt átkötés (Cavum Venosum -> Bal aortaív közvetlenül) -->
+          <path id="path-shunt" d="M 285 255 C 295 245, 315 245, 325 255" stroke="#1e293b" stroke-width="10"/>
+          <path id="path-shunt-visual" d="M 285 255 C 295 245, 315 245, 325 255" stroke="#a855f7" stroke-width="3" stroke-opacity="0.2" stroke-dasharray="3 2"/>
+        </g>
+
+        <!-- Szív vázlata (Háromüregű szív) -->
+        <g id="heart-anatomy">
+          <!-- Szív külső sziluettje -->
+          <path d="M 210 210 C 210 170, 290 170, 305 195 C 320 170, 400 170, 400 210 C 400 300, 310 330, 305 330 C 300 330, 210 300, 210 210 Z" 
+                fill="#111827" stroke="#475569" stroke-width="2"/>
+
+          <!-- Pitvarok közti sövény (Septum interatriale) -->
+          <line x1="305" y1="185" x2="305" y2="225" stroke="#64748b" stroke-width="3"/>
+
+          <!-- Jobb pitvar (Sinus venosus fogadása) -->
+          <circle cx="260" cy="205" r="22" fill="#1e3a8a" fill-opacity="0.4" stroke="#3b82f6" stroke-dasharray="2 2"/>
+          <text x="245" y="208" fill="#93c5fd" font-size="9" font-weight="700">JP</text>
+
+          <!-- Bal pitvar -->
+          <circle cx="350" cy="205" r="22" fill="#991b1b" fill-opacity="0.4" stroke="#ef4444" stroke-dasharray="2 2"/>
+          <text x="345" y="208" fill="#fca5a5" font-size="9" font-weight="700">BP</text>
+
+          <!-- Kamrai üreg (Ventriculus) elválasztói -->
+          <!-- Cavum Pulmonale (Ventrolaterális) -->
+          <ellipse cx="270" cy="265" rx="20" ry="16" fill="#1e293b" stroke="#334155"/>
+          <text x="256" y="267" fill="#60a5fa" font-size="8">C. Pulm.</text>
+
+          <!-- Cavum Arteriosum (Dorzolaterális) -->
+          <ellipse cx="345" cy="265" rx="20" ry="16" fill="#1e293b" stroke="#334155"/>
+          <text x="331" y="267" fill="#f87171" font-size="8">C. Art.</text>
+
+          <!-- Cavum Venosum (Központi) -->
+          <ellipse cx="305" cy="255" rx="16" ry="14" fill="#1e293b" stroke="#334155"/>
+          <text x="296" y="258" fill="#c084fc" font-size="7">C. Ven.</text>
+
+          <!-- Izomléc (Muscular Ridge) -->
+          <line id="muscular-ridge" x1="285" y1="280" x2="295" y2="250" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+        </g>
+
+        <!-- Keringő vérrészecskék konténere -->
+        <g id="particles"></g>
+
+        <!-- Érrendszeri és áramlási magyarázatok az ábrán -->
+        <g id="annotations">
+          <text x="140" y="150" class="vessel-label">Tüdőverőér (A. pulm.)</text>
+          <text x="330" y="150" class="vessel-label">Tüdővéna (Vv. pulm.)</text>
+          <text x="335" y="360" class="vessel-label">Páros aortaív (Ao.)</text>
+          <text x="180" y="360" class="vessel-label">Üresvéna (V. cava)</text>
+          <text id="shunt-marker" x="255" y="295" fill="#a855f7" font-size="9" font-weight="700" opacity="0.3">J-B SÖNT ZÁRVA</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Jobb oldali információs sáv -->
+    <div class="sidebar">
+      <div class="panel">
+        <div class="panel-title">
+          <span>Keringési állapot</span>
+          <span id="regime-tag" style="color: #3b82f6;">Légzési fázis</span>
+        </div>
+
+        <div class="metric-row">
+          <span>Tüdő ellenállás (<span style="font-size:0.75rem">R<sub>pulm</sub></span>)</span>
+          <span class="metric-val" id="r-pulm-val">Alacsony</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" id="bar-pulm" style="width: 25%; background: var(--lung);"></div>
+        </div>
+
+        <div class="metric-row">
+          <span>Szisztémás perif. ellenállás (<span style="font-size:0.75rem">R<sub>sys</sub></span>)</span>
+          <span class="metric-val" id="r-sys-val">Normál</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" id="bar-sys" style="width: 50%; background: var(--deox);"></div>
+        </div>
+
+        <div class="metric-row">
+          <span>Sönt frakció (J-B irány)</span>
+          <span class="metric-val" id="shunt-frac-val">~5%</span>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" id="bar-shunt" style="width: 5%; background: var(--mixed);"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Hőháztartási telemetria</div>
+        <div class="metric-row">
+          <span>Bőrfelszíni hőmérséklet:</span>
+          <span class="metric-val" id="skin-temp" style="color: #60a5fa;">22.4 °C</span>
+        </div>
+        <div class="metric-row">
+          <span>Belső maghőmérséklet:</span>
+          <span class="metric-val" id="core-temp">22.0 °C</span>
+        </div>
+        <div class="metric-row">
+          <span>Hőtranszport fluxus:</span>
+          <span class="metric-val" id="heat-flux" style="color: #94a3b8;">Minimális</span>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:1;">
+        <div class="panel-title">Mechanizmus és funkció</div>
+        <div class="explanation-box" id="explanation-text">
+          <p><strong>Gyors légzési állapot:</strong> A tüdőerek simaizomzata elernyed, az ellenállás alacsony. Szisztolé során az izomléc (muscular ridge) hozzáfeszül a szemközti kamrafalhoz, elzárva a <em>cavum pulmonale</em> üregét.</p>
+          <p>Az oxigénszegény vér közvetlenül a tüdőartériába áramlik, míg a bal pitvarból érkező oxigéndús vér a <em>cavum venosum</em>on keresztül lép be az aortákba. A fiziológiás elkülönülés meghaladja a 90%-ot.</p>
+        </div>
+
+        <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #3b82f6;"></div>
+            <span>Deoxigenált vér (Jobb szívfél / Tüdőartéria)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #ef4444;"></div>
+            <span>Oxigenált vér (Bal szívfél / Szisztémás aorta)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #a855f7;"></div>
+            <span>Kevert vér (Jobb-bal sönt áramlás)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: #f97316;"></div>
+            <span>Felmelegített perifériás vér (Napozáskor)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Szimulációs állapotváltozók
+    let currentMode = 'resp'; // 'resp' vagy 'bask'
+    let isPlaying = true;
+    let simSpeed = 1.0;
+    let skinTemp = 22.4;
+    let coreTemp = 22.0;
+
+    const particlesContainer = document.getElementById('particles');
+
+    // Részecske pályák meghatározása
+    const paths = {
+      // Normál légzési keringés
+      lungLoop: [
+        { x: 260, y: 420 }, // Mag/Testből
+        { x: 245, y: 210 }, // JP
+        { x: 270, y: 265 }, // Cavum Pulmonale
+        { x: 160, y: 100 }, // Tüdőágy
+        { x: 365, y: 210 }, // BP
+        { x: 345, y: 265 }, // Cavum Arteriosum
+        { x: 305, y: 255 }, // Cavum Venosum
+        { x: 325, y: 420 }  // Szisztémás testbe
+      ],
+      // Söntölt áramlás napozáskor (Jobb-bal kamrai sönt)
+      shuntLoop: [
+        { x: 450, y: 100 }, // Bőrből (Felmelegedve)
+        { x: 255, y: 210 }, // JP
+        { x: 305, y: 255 }, // Cavum Venosum (Kikerüli a C. Pulmonale-t)
+        { x: 325, y: 270 }, // Közvetlenül a bal/jobb aortába
+        { x: 325, y: 420 }, // Magba (Leadja a hőt a zsigereknek)
+        { x: 335, y: 300 }, // Vissza a bőrfelszínre
+        { x: 490, y: 100 }  // Bőr kapillárisok
+      ],
+      // Normál perifériás áramlás
+      skinLoopNormal: [
+        { x: 325, y: 320 },
+        { x: 490, y: 100 },
+        { x: 450, y: 100 },
+        { x: 255, y: 210 },
+        { x: 270, y: 265 },
+        { x: 160, y: 100 },
+        { x: 365, y: 210 },
+        { x: 325, y: 320 }
+      ]
+    };
+
+    class Particle {
+      constructor(type) {
+        this.type = type; // 'deox', 'ox', 'shunt', 'warm'
+        this.el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        this.el.setAttribute('r', '3.5');
+        particlesContainer.appendChild(this.el);
+        this.reset();
+      }
+
+      reset() {
+        this.progress = Math.random();
+        this.speed = (0.0018 + Math.random() * 0.0008);
+
+        if (currentMode === 'resp') {
+          this.route = Math.random() > 0.25 ? paths.lungLoop : paths.skinLoopNormal;
+        } else {
+          // Napozáskor a részecskék többsége a söntölt bőr-mag körön kering
+          this.route = Math.random() > 0.2 ? paths.shuntLoop : paths.lungLoop;
+        }
+      }
+
+      update(dt) {
+        this.progress += this.speed * simSpeed * dt;
+        if (this.progress >= 1) {
+          this.reset();
+          this.progress = 0;
+        }
+
+        // Pozíció interpoláció a pontok mentén
+        const totalSegments = this.route.length - 1;
+        const currentSegment = Math.floor(this.progress * totalSegments);
+        const segmentProgress = (this.progress * totalSegments) - currentSegment;
+
+        const p1 = this.route[currentSegment];
+        const p2 = this.route[Math.min(currentSegment + 1, totalSegments)];
+
+        const curX = p1.x + (p2.x - p1.x) * segmentProgress;
+        const curY = p1.y + (p2.y - p1.y) * segmentProgress;
+
+        this.el.setAttribute('cx', curX);
+        this.el.setAttribute('cy', curY);
+
+        // Színkódolás az oxigén- és hőtartalom alapján
+        let color = '#3b82f6'; // deox
+        if (currentMode === 'bask') {
+          if (curY < 140 && curX > 350) {
+            color = '#f97316'; // Bőrön felmelegedett vér
+          } else if (curY > 380) {
+            color = '#c2410c'; // Hőt leadó vér a testmagban
+          } else if (curX > 280 && curX < 330 && curY > 230 && curY < 320) {
+            color = '#a855f7'; // Söntölt kevert vér
+          } else {
+            color = '#fb923c';
+          }
+        } else {
+          // Légzési fázis: Tüdő után oxigenált
+          if (this.progress > 0.45 && this.progress < 0.9) {
+            color = '#ef4444'; // ox
+          } else {
+            color = '#3b82f6'; // deox
+          }
+        }
+
+        this.el.setAttribute('fill', color);
+      }
+
+      destroy() {
+        if (this.el.parentNode) {
+          this.el.parentNode.removeChild(this.el);
+        }
+      }
+    }
+
+    let particles = [];
+    for (let i = 0; i < 45; i++) {
+      particles.push(new Particle());
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('mode-resp').classList.toggle('active', mode === 'resp');
+      document.getElementById('mode-bask').classList.toggle('active', mode === 'bask');
+      document.getElementById('mode-bask').classList.toggle('bask', mode === 'bask');
+
+      const ridge = document.getElementById('muscular-ridge');
+      const shuntTxt = document.getElementById('shunt-marker');
+      const lungTxt = document.getElementById('lung-status-txt');
+      const skinTxt = document.getElementById('skin-status-txt');
+      const regimeTag = document.getElementById('regime-tag');
+
+      const rPulm = document.getElementById('r-pulm-val');
+      const rSys = document.getElementById('r-sys-val');
+      const shuntFrac = document.getElementById('shunt-frac-val');
+      const barPulm = document.getElementById('bar-pulm');
+      const barSys = document.getElementById('bar-sys');
+      const barShunt = document.getElementById('bar-shunt');
+      const expl = document.getElementById('explanation-text');
+      const heatFlux = document.getElementById('heat-flux');
+
+      if (mode === 'bask') {
+        regimeTag.innerText = "Jobb-Bal Sönt (Napozás)";
+        regimeTag.style.color = "var(--warm)";
+
+        // Izomléc elernyed, a söntcsatorna megnyílik
+        ridge.setAttribute('x2', '305');
+        ridge.setAttribute('y2', '245');
+
+        shuntTxt.innerText = "J-B SÖNT AKTÍV";
+        shuntTxt.setAttribute('opacity', '0.9');
+
+        lungTxt.innerText = "Magas ellenállás • Csökkent tüdőátáramlás";
+        skinTxt.innerText = "Duzzadt perifériás erek • Erős hőabszorpció";
+
+        rPulm.innerText = "Magas";
+        barPulm.style.width = "85%";
+        barPulm.style.background = "#f43f5e";
+
+        rSys.innerText = "Alacsony (Vasodilatatio)";
+        barSys.style.width = "25%";
+        barSys.style.background = "#f97316";
+
+        shuntFrac.innerText = "~65%";
+        barShunt.style.width = "65%";
+
+        heatFlux.innerText = "Erős konvektív melegedés (Periféria -> Mag)";
+        heatFlux.style.color = "#f97316";
+
+        expl.innerHTML = `
+          <p><strong>Napozási söntölés:</strong> A hüllő tágítja a háti és bőrfelszíni kapillárisait, míg a tüdő erei összehúzódnak (megnő az ellenállás: R<sub>pulm</sub>).</p>
+          <p>A felmelegedett vénás vér a <em>cavum venosum</em>on át közvetlenül a nagy szisztémás aortákba ömlik (jobb-bal sönt), kikerülve a tüdőt. Ez megakadályozza a légzőfelszíni párolgásos hővesztést, és <strong>20-50%-kal felgyorsítja a belső maghőmérséklet emelkedését</strong>.</p>
+        `;
+      } else {
+        regimeTag.innerText = "Légzési fázis";
+        regimeTag.style.color = "#3b82f6";
+
+        // Izomléc rázár a szemközti kamrafalra
+        ridge.setAttribute('x2', '295');
+        ridge.setAttribute('y2', '250');
+
+        shuntTxt.innerText = "J-B SÖNT ZÁRVA";
+        shuntTxt.setAttribute('opacity', '0.2');
+
+        lungTxt.innerText = "Alacsony ellenállás • Intenzív gázcsere";
+        skinTxt.innerText = "Nyugalmi felületi perfúzió";
+
+        rPulm.innerText = "Alacsony";
+        barPulm.style.width = "25%";
+        barPulm.style.background = "var(--lung)";
+
+        rSys.innerText = "Normál";
+        barSys.style.width = "50%";
+        barSys.style.background = "var(--deox)";
+
+        shuntFrac.innerText = "~5%";
+        barShunt.style.width = "5%";
+
+        heatFlux.innerText = "Minimális / Kiegyenlített";
+        heatFlux.style.color = "#94a3b8";
+
+        expl.innerHTML = `
+          <p><strong>Gyors légzési állapot:</strong> A tüdőerek simaizomzata elernyed, az ellenállás alacsony. Szisztolé során az izomléc (muscular ridge) hozzáfeszül a szemközti kamrafalhoz, funkcionálisan szeparálva a <em>cavum pulmonale</em> üregét.</p>
+          <p>Az oxigénszegény vér közvetlenül a tüdőartériába jut, míg a bal pitvarból érkező oxigéndús vér a <em>cavum venosum</em>on keresztül lép be az aortákba. A fiziológiás elkülönülés meghaladja a 90%-ot.</p>
+        `;
+      }
+
+      // Részecskék áthangolása az új útvonalakra
+      particles.forEach(p => p.reset());
+    }
+
+    function setSpeed(spd) {
+      simSpeed = spd;
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('pause-btn').innerText = isPlaying ? "Szünet" : "Indítás";
+    }
+
+    // Animációs és termális ciklus
+    let lastTime = performance.now();
+    function animate(now) {
+      const dt = (now - lastTime) / 16.66; // Normalizált képkockaidő
+      lastTime = now;
+
+      if (isPlaying) {
+        particles.forEach(p => p.update(dt));
+
+        // Hőmérsékleti dinamika szimulálása
+        if (currentMode === 'bask') {
+          if (skinTemp < 34.5) skinTemp += 0.015 * dt * simSpeed;
+          // A sönt hatékonyan konvektálja a meleget a magba
+          if (coreTemp < 32.8) coreTemp += 0.011 * dt * simSpeed;
+        } else {
+          // Hűlés / stabilizáció
+          if (skinTemp > 24.0) skinTemp -= 0.008 * dt * simSpeed;
+          if (coreTemp > 23.5) coreTemp -= 0.005 * dt * simSpeed;
+        }
+
+        document.getElementById('skin-temp').innerText = skinTemp.toFixed(1) + " °C";
+        document.getElementById('core-temp').innerText = coreTemp.toFixed(1) + " °C";
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
