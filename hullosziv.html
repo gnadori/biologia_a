@@ -16,6 +16,7 @@
       --mixed: #a855f7;
       --warm: #f97316;
       --hot: #ea580c;
+      --cold-loss: #0284c7;
       --lung: #06b6d4;
       --accent: #10b981;
     }
@@ -273,6 +274,18 @@
     .sun-active {
       opacity: 0.85;
     }
+
+    .cooling-indicator {
+      font-size: 9px;
+      fill: #38bdf8;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .cooling-active {
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -320,15 +333,16 @@
         <g id="organs">
           <!-- Tüdőágy -->
           <rect x="50" y="30" width="220" height="70" rx="12" fill="url(#lung-grad)" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="4 2"/>
-          <text x="65" y="55" fill="#38bdf8" font-size="12" font-weight="700">TÜDŐKERINGÉS</text>
-          <text x="65" y="75" fill="#94a3b8" font-size="9" id="lung-status-txt">Alacsony ellenállás • Intenzív gázcsere</text>
+          <text x="65" y="52" fill="#38bdf8" font-size="12" font-weight="700">TÜDŐKERINGÉS</text>
+          <text x="65" y="70" fill="#94a3b8" font-size="9" id="lung-status-txt">Alacsony ellenállás • Intenzív gázcsere</text>
+          <text x="65" y="86" id="lung-cool-label" class="cooling-indicator">❄ PÁROLGÁSOS HŐVESZTÉS (HŰLÉS)</text>
 
           <!-- Bőr és dorzális felszín -->
           <rect id="skin-box" x="380" y="30" width="220" height="70" rx="12" fill="url(#skin-grad)" stroke="#f97316" stroke-width="1.5" stroke-dasharray="4 2"/>
           <text x="395" y="55" fill="#fb923c" font-size="12" font-weight="700">NAPOZÓ BŐRFELSZÍN</text>
           <text x="395" y="75" fill="#94a3b8" font-size="9" id="skin-status-txt">Alap perfúzió • Minimális melegedés</text>
 
-          <!-- Napsugárzás indikáció napozáskor -->
+          <!-- Napsugárzás indikáció -->
           <g id="sun-graphics" class="sun-rays">
             <line x1="490" y1="5" x2="490" y2="25"/>
             <line x1="460" y1="8" x2="470" y2="25"/>
@@ -487,6 +501,10 @@
             <span>Napon felmelegedett vér (Bőrfelszín / Vena cutanea)</span>
           </div>
           <div class="legend-item">
+            <div class="legend-dot" style="background: #0284c7;"></div>
+            <span>Tüdőben visszahűlt vér (Párolgásos hővesztés)</span>
+          </div>
+          <div class="legend-item">
             <div class="legend-dot" style="background: #a855f7;"></div>
             <span>Söntölt meleg vér (Aortán át a testmag fűtésére)</span>
           </div>
@@ -504,7 +522,7 @@
 
     const particlesContainer = document.getElementById('particles');
 
-    // Szigorúan egyirányú, fiziológiailag helyes útvonalak
+    // Szigorúan egyirányú útvonalak
     const paths = {
       // 1. Légzési kör: Testmag -> Vena Cava -> JP -> C. Pulmonale -> Tüdő -> BP -> C. Arteriosum -> Aorta -> Testmag
       respiratoryLoop: [
@@ -513,7 +531,7 @@
         { x: 255, y: 205 }, // Jobb Pitvar
         { x: 270, y: 265 }, // Cavum Pulmonale
         { x: 160, y: 170 }, // Tüdőartéria
-        { x: 160, y: 100 }, // Tüdő kapillárisok (gázcsere)
+        { x: 160, y: 100 }, // Tüdő kapillárisok (gázcsere / párolgásos hűlés)
         { x: 180, y: 100 }, // Tüdővéna kezdete
         { x: 355, y: 170 }, // Tüdővéna lefelé
         { x: 355, y: 205 }, // Bal Pitvar
@@ -563,21 +581,20 @@
       reset() {
         this.progress = Math.random();
         
-        // KIEGYENSÚLYOZOTT BÁZIS SEBESSÉG (0.0035 - 0.0055)
-        // se nem túl lassú (0.0018), se nem túl gyors (0.0085)
+        // AZ ÁLTALAD MEGADOTT OPTIMÁLIS ALAPSEBESSÉG:
         this.baseSpeed = 0.001 + Math.random() * 0.0005;
 
         if (currentMode === 'resp') {
           this.route = Math.random() > 0.2 ? paths.respiratoryLoop : paths.normalSkinBranch;
         } else {
-          // Napozáskor a döntő többség a J-B söntölt melegítő körre terelődik
-          this.route = Math.random() > 0.15 ? paths.baskingShuntLoop : paths.respiratoryLoop;
+          // Napozáskor a döntő többség a J-B söntölt melegítő körre terelődik,
+          // de kb. 15-20% még átjut a tüdőn (így láthatóvá válik a tüdőbeni visszahűlés veszélye!)
+          this.route = Math.random() > 0.18 ? paths.baskingShuntLoop : paths.respiratoryLoop;
         }
       }
 
       update(dt) {
-        // Napozás alatt a megnövekedett pulzustérfogat és tachicardia miatt enyhe (+20%) természetes gyorsulás
-        const modeMultiplier = currentMode === 'bask' ? 1.2 : 1.0;
+        const modeMultiplier = currentMode === 'bask' ? 1.15 : 1.0;
         this.progress += this.baseSpeed * simSpeed * modeMultiplier * dt;
         
         if (this.progress >= 1) {
@@ -601,18 +618,34 @@
         // Dinamikus élettani színkódolás
         let color = '#3b82f6';
         if (currentMode === 'bask') {
-          if (curY < 120 && curX > 380) {
-            color = '#ea580c'; // Bőrben forrósodó vér
-          } else if (curX > 400 && curY >= 120 && curY < 200) {
-            color = '#f97316'; // Vena cutaneán leáramló forró vér
-          } else if (curX > 270 && curX < 340 && curY >= 230 && curY < 320) {
-            color = '#a855f7'; // Söntölt vér a szívben és aortaívben
-          } else if (curY >= 380) {
-            color = '#c2410c'; // Zsigereket melegítő vér a testmagban
-          } else if (curX > 330 && curY >= 280) {
-            color = '#ea580c'; // Bőrártérián felszálló vér
-          } else {
-            color = '#fb923c';
+          // 1. Eset: A részecske a tüdőn át haladó kisebbségbe tartozik napozáskor
+          if (this.route === paths.respiratoryLoop) {
+            if (this.progress < 0.4) {
+              // A szívbe érkező és tüdő felé tartó vér még hordoz némi melegséget
+              color = '#f97316';
+            } else if (this.progress >= 0.4 && this.progress < 0.85) {
+              // A TÜDŐ KAPILLÁRISAIBAN ÉS A TÜDŐVÉNÁBAN: LEHŰL a párolgás miatt!
+              color = '#0284c7'; // Hideg kék szín (párolgásos hővesztés)
+            } else {
+              // Visszahűlt vér a szisztémás keringésben
+              color = '#38bdf8';
+            }
+          } 
+          // 2. Eset: A söntölt többségi véráram
+          else {
+            if (curY < 120 && curX > 380) {
+              color = '#ea580c'; // Bőrben forrósodó vér
+            } else if (curX > 400 && curY >= 120 && curY < 200) {
+              color = '#f97316'; // Vena cutaneán leáramló forró vér
+            } else if (curX > 270 && curX < 340 && curY >= 230 && curY < 320) {
+              color = '#a855f7'; // Söntölt meleg vér a szívben és aortaívben
+            } else if (curY >= 380) {
+              color = '#c2410c'; // Zsigereket fűtő vér a testmagban
+            } else if (curX > 330 && curY >= 280) {
+              color = '#ea580c'; // Bőrártérián felszálló meleg vér
+            } else {
+              color = '#fb923c';
+            }
           }
         } else {
           // Normál légzési ciklus: oxigénszint szerinti szín
@@ -649,6 +682,7 @@
       const coreTxt = document.getElementById('core-status-txt');
       const regimeTag = document.getElementById('regime-tag');
       const sunRays = document.getElementById('sun-graphics');
+      const lungCoolLabel = document.getElementById('lung-cool-label');
 
       const rPulm = document.getElementById('r-pulm-val');
       const rSys = document.getElementById('r-sys-val');
@@ -671,8 +705,9 @@
         shuntTxt.setAttribute('opacity', '0.9');
 
         sunRays.classList.add('sun-active');
+        lungCoolLabel.classList.add('cooling-active');
 
-        lungTxt.innerText = "Magas ellenállás • Tüdőátáramlás minimalizálva";
+        lungTxt.innerText = "Vazokonstriktio • Csökkent átáramlás";
         skinTxt.innerText = "Értágulat • Intenzív szoláris hőfelvétel";
         coreTxt.innerText = "Konvektív belső fűtés az aortán át";
 
@@ -684,15 +719,15 @@
         barSys.style.width = "20%";
         barSys.style.background = "#f97316";
 
-        shuntFrac.innerText = "~70%";
-        barShunt.style.width = "70%";
+        shuntFrac.innerText = "~75%";
+        barShunt.style.width = "75%";
 
         heatFlux.innerText = "Erős melegedés (Bőr → Mag)";
         heatFlux.style.color = "#ea580c";
 
         expl.innerHTML = `
-          <p><strong>Napozási J–B sönt:</strong> A napsütés hatására a bőr erei kitágulnak, a vér felveszi a szoláris hőt. Ezzel egy időben a tüdő erei összehúzódnak (magas R<sub>pulm</sub>).</p>
-          <p>A forró vér a <em>Vena cutaneán</em> át a jobb pitvarba jut, ahonnan a tüdőt megkerülve (J–B sönt) közvetlenül a szisztémás aortákba ömlik lefelé. Így <strong>a nedves tüdő nem hűti vissza a vért</strong>, és a testmag perceken belül átmelegszik.</p>
+          <p><strong>Napozási J–B sönt és a tüdő védelme:</strong> A napozás során a meleg bőrvénás vér döntő része a söntön át rögtön az aortákba áramlik.</p>
+          <p><strong>Miért kell kikerülni a tüdőt?</strong> Figyeld meg a tüdőbe tévedő kevés részecskét: a nedves, szellőző tüdőhólyagocskák felületén a meleg vér hirtelen <em>kihűl</em> (kék szín) a párolgásos hőveszteség miatt! A hüllő ezért zárja el a tüdőkeringést (magas R<sub>pulm</sub>), megelőzve, hogy a frissen szerzett hő elvesszen.</p>
         `;
       } else {
         regimeTag.innerText = "Légzési fázis";
@@ -706,6 +741,7 @@
         shuntTxt.setAttribute('opacity', '0.2');
 
         sunRays.classList.remove('sun-active');
+        lungCoolLabel.classList.remove('cooling-active');
 
         lungTxt.innerText = "Alacsony ellenállás • Intenzív gázcsere";
         skinTxt.innerText = "Alap perfúzió • Minimális melegedés";
